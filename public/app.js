@@ -41,13 +41,32 @@ async function getJson(url) {
   return body;
 }
 
+// With server.js running, the browser calls its JSON API. On a static host
+// (GitHub Pages) there's no API, so the same logic runs in the page instead.
+const serverApi = {
+  mode: 'server',
+  route: (from, to, heat) => getJson(`api/route?${new URLSearchParams({ from: from.join(','), to: to.join(','), heat })}`),
+  sensors: () => getJson('api/sensors'),
+  geocode: (q) => getJson(`api/geocode?q=${encodeURIComponent(q)}`),
+};
+
+async function pickApi() {
+  try {
+    const res = await fetch('api/health');
+    if (res.ok && (await res.json()).ok) return serverApi;
+  } catch { /* no server here */ }
+  return (await import('./engine.js')).browserApi;
+}
+// Resolved lazily so the inputs and map work while this is still deciding.
+const apiReady = pickApi();
+
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 // ---- Sensors -------------------------------------------------------------
 
 async function loadSensors() {
   try {
-    const { sensors, updatedAt } = await getJson('/api/sensors');
+    const { sensors, updatedAt } = await (await apiReady).sensors();
     sensorLayer.clearLayers();
     for (const s of sensors) {
       const depth = s.depthMm == null ? 'no recent reading' : `${s.depthMm} mm of water`;
@@ -91,7 +110,7 @@ for (const which of ['from', 'to']) {
     if (q.length < 3) { list.innerHTML = ''; return; }
     timer = setTimeout(async () => {
       try {
-        const { results } = await getJson(`/api/geocode?q=${encodeURIComponent(q)}`);
+        const { results } = await (await apiReady).geocode(q);
         list.innerHTML = '';
         for (const r of results) {
           const li = document.createElement('li');
@@ -112,7 +131,7 @@ for (const which of ['from', 'to']) {
 async function resolvePlace(which) {
   if (places[which]) return places[which];
   const q = $(which).value.trim();
-  const { results } = await getJson(`/api/geocode?q=${encodeURIComponent(q)}`);
+  const { results } = await (await apiReady).geocode(q);
   if (!results.length) throw new Error(`Couldn't find "${q}"`);
   setPlace(which, results[0]);
   return results[0];
@@ -147,8 +166,9 @@ function renderConditions(data) {
       w.feelsLikeF != null && w.feelsLikeF !== w.tempF ? `, feels like ${w.feelsLikeF}°F` : ''}</div>
     <div>${escapeHtml(w.description || '')}</div>
     <div>${heatText}</div>
-    <div class="meta">FloodNet: ${data.floodnet.sensorCount} sensors${
+    <div class="meta">FloodNet: ${data.floodnet.sensorCount} sensors checked${
       data.floodnet.updatedAt ? `, updated ${new Date(data.floodnet.updatedAt).toLocaleTimeString()}` : ''}</div>
+    ${data.floodnet.error ? `<div class="meta warn">Live flood data couldn't load, so routes are ranked on shade and time only.</div>` : ''}
     ${data.treeError ? `<div class="meta">Tree data unavailable: ${escapeHtml(data.treeError)}</div>` : ''}`;
   el.hidden = false;
 }
@@ -216,8 +236,7 @@ async function findRoutes() {
     setStatus('Finding places…');
     const [from, to] = [await resolvePlace('from'), await resolvePlace('to')];
     setStatus('Checking flood sensors, street trees and weather…');
-    const params = new URLSearchParams({ from: `${from.lat},${from.lng}`, to: `${to.lat},${to.lng}`, heat: $('heat').value });
-    const data = await getJson(`/api/route?${params}`);
+    const data = await (await apiReady).route([from.lat, from.lng], [to.lat, to.lng], $('heat').value);
     lastResult = data;
     selected = 0;
     renderConditions(data);

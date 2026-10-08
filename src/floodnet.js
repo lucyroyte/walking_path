@@ -42,10 +42,13 @@ async function fetchLatestDepth(id, now) {
   }
 }
 
-export async function fetchSensors(now = Date.now()) {
+// All active sensors, or with `box` only those inside it. The browser build
+// passes a box so a visitor's page asks for a handful of sensors, not ~400.
+export async function fetchSensors(now = Date.now(), { box } = {}) {
   const { deployments } = await fetchJson(`${API}/deployments/flood`);
+  const inBox = ([lng, lat]) => !box || (lat >= box.minLat && lat <= box.maxLat && lng >= box.minLng && lng <= box.maxLng);
   const active = deployments.filter(
-    (d) => !d.date_down && !DEAD_STATUSES.has(d.sensor_status) && d.location?.coordinates,
+    (d) => !d.date_down && !DEAD_STATUSES.has(d.sensor_status) && d.location?.coordinates && inBox(d.location.coordinates),
   );
   const readings = await mapLimit(active, 16, (d) => fetchLatestDepth(d.deployment_id, now));
   return active.map((d, i) => {

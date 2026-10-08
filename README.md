@@ -45,6 +45,10 @@ Type addresses (geocoded with [NYC GeoSearch](https://geosearch.planninglabs.nyc
 | `TRUST_PROXY` | unset | Set to `1` behind a load balancer or CDN so rate limits use the visitor's IP from `X-Forwarded-For` |
 | `ROUTE_LIMIT_PER_MIN` | `20` | Route searches allowed per visitor per minute |
 
+### GitHub Pages (no server)
+
+The app also runs with no server at all. Turn on GitHub Pages for this repo (Settings > Pages > Deploy from a branch, folder `/ (root)`), and the site at `https://<user>.github.io/walking_path/` opens the app. When the page can't reach `api/health`, `public/engine.js` runs the same code from `src/` in the browser and calls FloodNet, OSRM, NYC Open Data, NWS and NYC GeoSearch directly. It only asks FloodNet about sensors near the routes, so the sensor map fills in after a search. If one of those services blocks browser requests, the page says which data is missing (for example, "Live flood data couldn't load") and ranks on what it has.
+
 ### Running it as a public website
 
 To put it online for free, use [Render](https://render.com): sign in with GitHub, choose **New > Blueprint**, and pick this repo. `render.yaml` sets everything up, and each merge redeploys. The free plan sleeps when idle, so the first visit after a quiet spell takes about 30 seconds.

@@ -4,11 +4,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FloodNetCache } from './src/floodnet.js';
 import { TreeStore } from './src/trees.js';
-import { currentConditions } from './src/weather.js';
-import { candidateRoutes, providerName } from './src/routing.js';
-import { scoreRoutes } from './src/scoring.js';
-import { bbox, samplePath } from './src/geo.js';
-import { fetchJson } from './src/http.js';
+import { providerName } from './src/routing.js';
+import { planTrip, checkPoint } from './src/plan.js';
+import { geocode } from './src/geocode.js';
 import { RateLimiter, TtlCache } from './src/limits.js';
 
 const PORT = Number(process.env.PORT) || 3000;
@@ -17,8 +15,6 @@ const HOST = process.env.HOST || '0.0.0.0';
 // visitor's address from X-Forwarded-For instead of the proxy's.
 const TRUST_PROXY = process.env.TRUST_PROXY === '1';
 const PUBLIC = path.join(path.dirname(fileURLToPath(import.meta.url)), 'public');
-const NYC = { minLat: 40.49, maxLat: 40.92, minLng: -74.27, maxLng: -73.68 };
-const MAX_TRIP_M = 15000;
 
 const floodnet = new FloodNetCache();
 const trees = new TreeStore();
@@ -33,6 +29,7 @@ const LIMITS = {
   '/api/route': new RateLimiter({ max: Number(process.env.ROUTE_LIMIT_PER_MIN) || 20, windowMs: 60_000 }),
   '/api/geocode': new RateLimiter({ max: 120, windowMs: 60_000 }),
   '/api/sensors': new RateLimiter({ max: 30, windowMs: 60_000 }),
+  '/api/health': new RateLimiter({ max: 60, windowMs: 60_000 }),
 };
 const routeCache = new TtlCache({ ttlMs: 2 * 60_000 });
 const geocodeCache = new TtlCache({ ttlMs: 24 * 3600_000, maxEntries: 2000 });
@@ -58,29 +55,7 @@ const SECURITY_HEADERS = {
 function parsePoint(s, name) {
   const m = /^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/.exec(s || '');
   if (!m) throw new HttpError(400, `"${name}" must be "lat,lng"`);
-  const p = [Number(m[1]), Number(m[2])];
-  if (p[0] < NYC.minLat || p[0] > NYC.maxLat || p[1] < NYC.minLng || p[1] > NYC.maxLng) {
-    throw new HttpError(400, `"${name}" is outside New York City, where FloodNet and the tree data cover.`);
-  }
-  return p;
-}
-
-// Trees within a few meters of any candidate route, for drawing on the map.
-function treesAlong(routes, treeIndex, limit = 6000) {
-  const seen = new Set();
-  const out = [];
-  for (const r of routes) {
-    for (const p of samplePath(r.path, 10)) {
-      for (const { item } of treeIndex.near(p, 12)) {
-        const k = `${item.lat},${item.lng}`;
-        if (seen.has(k)) continue;
-        seen.add(k);
-        out.push([+item.lat.toFixed(6), +item.lng.toFixed(6), item.r]);
-        if (out.length >= limit) return out;
-      }
-    }
-  }
-  return out;
+  return checkPoint([Number(m[1]), Number(m[2])], name);
 }
 
 function handleRoute(q) {
@@ -89,37 +64,8 @@ function handleRoute(q) {
   const heatMode = ['auto', 'on', 'off'].includes(q.get('heat')) ? q.get('heat') : 'auto';
   // ~1 m precision, so repeat clicks and shared links hit the cache.
   const key = [...from, ...to].map((n) => n.toFixed(5)).join(',') + heatMode;
-  return routeCache.get(key, () => computeRoute(from, to, heatMode));
-}
-
-async function computeRoute(from, to, heatMode) {
-
-  const [routes, flood, weather] = await Promise.all([
-    candidateRoutes(from, to),
-    floodnet.get(),
-    currentConditions(from[0], from[1]).catch((err) => ({ error: err.message, heatWeight: 0 })),
-  ]);
-  if (routes[0].distanceM > MAX_TRIP_M) throw new HttpError(400, 'That walk is over 15 km; try a shorter trip.');
-
-  const box = bbox(routes.flatMap((r) => r.path), 20);
-  let treeIndex, treeError = null;
-  try {
-    treeIndex = await trees.indexFor(box);
-  } catch (err) {
-    treeError = err.message;
-  }
-
-  const heatWeight = heatMode === 'on' ? 1 : heatMode === 'off' ? 0 : weather.heatWeight;
-  const scored = scoreRoutes(routes, { sensors: flood.sensors, treeIndex, heatWeight });
-
-  return {
-    from, to, provider: providerName(), heatMode, heatWeight,
-    weather,
-    floodnet: { updatedAt: flood.updatedAt, error: flood.error, sensorCount: flood.sensors.length },
-    treeError,
-    routes: scored.map(({ path: p, ...r }) => ({ ...r, path: p.map(([a, b]) => [+a.toFixed(6), +b.toFixed(6)]) })),
-    trees: treeIndex ? treesAlong(scored, treeIndex) : [],
-  };
+  // The server polls every sensor in the background, so the box isn't needed.
+  return routeCache.get(key, () => planTrip(from, to, heatMode, { getSensors: () => floodnet.get(), trees }));
 }
 
 async function handleSensors() {
@@ -133,18 +79,9 @@ async function handleGeocode(q) {
   return geocodeCache.get(text.toLowerCase(), () => geocode(text));
 }
 
-async function geocode(text) {
-  const data = await fetchJson(`https://geosearch.planninglabs.nyc/v2/autocomplete?text=${encodeURIComponent(text)}`);
-  return {
-    results: data.features.slice(0, 6).map((f) => ({
-      label: f.properties.label,
-      lat: f.geometry.coordinates[1],
-      lng: f.geometry.coordinates[0],
-    })),
-  };
-}
-
-const API = { '/api/route': handleRoute, '/api/sensors': handleSensors, '/api/geocode': handleGeocode };
+const API = {
+  '/api/health': async () => ({ ok: true }),
+  '/api/route': handleRoute, '/api/sensors': handleSensors, '/api/geocode': handleGeocode };
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' };
 
 async function serveStatic(pathname, res) {
