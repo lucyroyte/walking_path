@@ -1,0 +1,15 @@
+{
+  "name": "walking-path",
+  "version": "0.1.0",
+  "description": "Walking directions that avoid live street flooding (FloodNet) and favor tree shade on hot days (NYC street trees).",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT"
+}

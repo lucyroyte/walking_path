@@ -1,0 +1,67 @@
+# Walking Path
+
+NYC walking directions that **steer around live street flooding** and **toward tree shade when it's hot**.
+
+For each trip the app:
+
+1. Gets several candidate walking routes. It asks the routing provider for its alternatives, and also for routes forced through "via" points on either side of the straight line, so there's a real choice when the obvious streets are flooded.
+2. Checks each route against **[FloodNet](https://www.floodnet.nyc)**, the network of about 400 real-time street-flood sensors. A route that passes within 50 m of a sensor reading at least 25 mm (about 1 inch) of water is marked *flooded*. A reading of 10 to 25 mm counts as *wet*.
+3. Measures how much of each route is under street-tree canopy, using **[NYC Parks Forestry Tree Points](https://data.cityofnewyork.us/d/hn5i-inap)**. That dataset has about 900k living street trees. Crown size is estimated from trunk diameter.
+4. Reads the current temperature and heat index from the nearest **[National Weather Service](https://www.weather.gov)** station. Shade starts to count when it feels like 75°F and counts fully at 90°F.
+5. Ranks the routes by "effective minutes":
+
+   ```
+   cost = walk time × (1 + 0.6 × heat × share of route in sun)
+        + 2 min per wet sensor passed
+        + 60 min if any flooded sensor is passed
+   ```
+
+   On a mild day this means the fastest dry route wins. On a hot day an unshaded minute counts as up to 1.6 minutes, so a slightly longer, shadier street can win. A flooded route comes last unless every option is flooded.
+
+Each route card has an **Open in Google Maps** link. It pins the chosen route with waypoints so you can navigate turn-by-turn in Google Maps.
+
+## Run it
+
+Requires Node 20+. There are no dependencies to install.
+
+```sh
+npm start          # http://localhost:3000
+npm test           # unit tests (offline)
+```
+
+Type addresses (geocoded with [NYC GeoSearch](https://geosearch.planninglabs.nyc)) or click the map to set a start and an end point. The **Heat** menu lets you force shade-seeking ("It's hot") or turn it off.
+
+### Configuration (env vars)
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PORT` | `3000` | HTTP port |
+| `GOOGLE_MAPS_API_KEY` | unset | If set, candidate routes come from the [Google Routes API](https://developers.google.com/maps/documentation/routes) (`WALK` mode) instead of OpenStreetMap. The key needs the Routes API enabled. |
+| `OSRM_URL` | `https://routing.openstreetmap.de/routed-foot` | OSRM foot-profile server used when no Google key is set. Run your own server for production traffic. |
+| `SOCRATA_APP_TOKEN` | unset | NYC Open Data app token, for higher rate limits on tree lookups. |
+
+## API
+
+- `GET /api/route?from=lat,lng&to=lat,lng&heat=auto|on|off` returns ranked routes with geometry, shade %, nearby sensors, weather, and trees along the routes.
+- `GET /api/sensors` returns every active FloodNet sensor with its latest depth and status (`dry`/`wet`/`flooded`/`unknown`).
+- `GET /api/geocode?q=...` returns address autocomplete results.
+
+## How it's built
+
+```
+server.js         HTTP server: JSON API + static files
+src/floodnet.js   polls every FloodNet sensor every 3 min, keeps the latest reading
+src/trees.js      fetches street trees in ~1 km tiles; caches them in memory and in .cache/ for 7 days
+src/weather.js    NWS latest observation → heat weight
+src/routing.js    candidate routes (OSRM or Google) plus via-point detours, deduped
+src/scoring.js    shade share, flood proximity, ranking
+public/           Leaflet map UI
+```
+
+## Known limits and next steps
+
+- **Coverage is NYC only.** FloodNet and the tree inventory are NYC datasets, and requests outside the five boroughs are rejected.
+- **Sensors are points.** A sensor only reports the spot where it's mounted. A street with no sensor is treated as dry. Possible next steps: add NYC's [Stormwater Flood Maps](https://data.cityofnewyork.us/d/9i7c-xyvv) as a "prone to flooding" prior when it's raining, and 311 street-flooding complaints.
+- **Shade is approximate.** Canopy is estimated from trunk diameter, and building shade (which depends on time of day) isn't modeled yet. Possible next steps: the NYC LiDAR canopy layer and a sun-position and building-height shadow model.
+- **Apple Maps.** The Apple Maps Server API needs a signed developer token and doesn't accept intermediate waypoints for walking, so there's no Apple provider or deep link yet. Google Maps links follow the chosen route through waypoints.
+- **Public OSRM demo server.** The default routing server is a free community service with fair-use limits. Use a Google key or self-host OSRM before real launch.
