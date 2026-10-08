@@ -69,6 +69,7 @@ export function scoreRoutes(routes, { sensors, treeIndex = new GridIndex(), heat
   return scored.map((r, i) => ({
     ...r,
     rank: i + 1,
+    decidedBy: explain(r, scored, heatWeight),
     labels: [
       i === 0 && 'recommended',
       r === fastest && 'fastest',
@@ -76,4 +77,41 @@ export function scoreRoutes(routes, { sensors, treeIndex = new GridIndex(), heat
     ].filter(Boolean),
     extraMinutes: Math.round((r.durationS - fastest.durationS) / 60),
   }));
+}
+
+const SOURCES = { flood: 'FloodNet', shade: 'Street trees + NWS heat', time: 'Walk time' };
+const describe = (s) => `${s.name}${s.depthMm != null ? ` (${s.depthMm} mm)` : ''}`;
+
+// Names the one data source that put this route where it is in the ranking,
+// with a short reason. `ranked` is sorted best first.
+export function explain(r, ranked, heatWeight) {
+  const best = ranked[0];
+  const severity = { clear: 0, wet: 1, flooded: 2 };
+  if (r === best) {
+    if (r.floodStatus === 'flooded') {
+      return { source: SOURCES.flood, text: 'Every route passes a flooded sensor; this one has the lowest cost.' };
+    }
+    const faster = ranked.filter((o) => o.durationS < r.durationS);
+    if (faster.some((o) => severity[o.floodStatus] > severity[r.floodStatus])) {
+      const hit = faster.flatMap((o) => [...o.sensors.flooded, ...o.sensors.wet])[0];
+      return { source: SOURCES.flood, text: `Faster routes pass water at ${describe(hit)}; this one avoids it.` };
+    }
+    if (faster.length && heatWeight > 0) {
+      const quickest = faster.reduce((m, o) => (o.durationS < m.durationS ? o : m));
+      return { source: SOURCES.shade, text: `${r.shadePct}% shaded vs ${quickest.shadePct}% on the fastest route, and it's warm out.` };
+    }
+    return { source: SOURCES.time, text: r.floodStatus === 'wet' ? 'Quickest option; minor standing water nearby.' : 'Quickest route with no flooding reported.' };
+  }
+  if (severity[r.floodStatus] > severity[best.floodStatus]) {
+    const hit = r.sensors.flooded[0] || r.sensors.wet[0];
+    return { source: SOURCES.flood, text: `${r.floodStatus === 'flooded' ? 'Flooding' : 'Standing water'} at ${describe(hit)}.` };
+  }
+  if (heatWeight > 0 && r.shadePct < best.shadePct && r.durationS <= best.durationS) {
+    return { source: SOURCES.shade, text: `Only ${r.shadePct}% shaded vs ${best.shadePct}% on the recommended route.` };
+  }
+  const slowerMin = Math.round((r.durationS - best.durationS) / 60);
+  return {
+    source: SOURCES.time,
+    text: slowerMin >= 1 ? `${slowerMin} min slower than the recommended route.` : 'Within a minute of the recommended route.',
+  };
 }

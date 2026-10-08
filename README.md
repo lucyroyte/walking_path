@@ -18,6 +18,8 @@ For each trip the app:
 
    On a mild day this means the fastest dry route wins. On a hot day an unshaded minute counts as up to 1.6 minutes, so a slightly longer, shadier street can win. A flooded route comes last unless every option is flooded.
 
+Each route card says which data source decided its place in the ranking: **FloodNet** (it avoids, or passes, a wet or flooded sensor), **Street trees + NWS heat** (it won or lost on shade on a warm day), or **Walk time** (nothing else separated it from the others). The API returns this as `decidedBy: { source, text }` on every route.
+
 Each route card has an **Open in Google Maps** link. It pins the chosen route with waypoints so you can navigate turn-by-turn in Google Maps.
 
 ## Run it
@@ -39,6 +41,24 @@ Type addresses (geocoded with [NYC GeoSearch](https://geosearch.planninglabs.nyc
 | `GOOGLE_MAPS_API_KEY` | unset | If set, candidate routes come from the [Google Routes API](https://developers.google.com/maps/documentation/routes) (`WALK` mode) instead of OpenStreetMap. The key needs the Routes API enabled. |
 | `OSRM_URL` | `https://routing.openstreetmap.de/routed-foot` | OSRM foot-profile server used when no Google key is set. Run your own server for production traffic. |
 | `SOCRATA_APP_TOKEN` | unset | NYC Open Data app token, for higher rate limits on tree lookups. |
+| `HOST` | `0.0.0.0` | Address to listen on |
+| `TRUST_PROXY` | unset | Set to `1` behind a load balancer or CDN so rate limits use the visitor's IP from `X-Forwarded-For` |
+| `ROUTE_LIMIT_PER_MIN` | `20` | Route searches allowed per visitor per minute |
+
+### Running it as a public website
+
+To put it online for free, use [Render](https://render.com): sign in with GitHub, choose **New > Blueprint**, and pick this repo. `render.yaml` sets everything up, and each merge redeploys. The free plan sleeps when idle, so the first visit after a quiet spell takes about 30 seconds.
+
+
+The server is ready to sit behind a host's HTTPS proxy as a single process:
+
+- **Rate limits** per visitor IP: 20 route searches, 120 address lookups and 30 sensor refreshes a minute. Over the limit returns `429` with `Retry-After`.
+- **Caching**: identical route searches are reused for 2 minutes and address lookups for a day, so repeat clicks and shared links don't hit the routing server again. FloodNet is polled in the background every 3 minutes no matter how much traffic there is.
+- **Headers**: a Content-Security-Policy that only allows this site, Leaflet from unpkg and OpenStreetMap tiles, plus `nosniff` and a strict referrer policy.
+- **Errors**: upstream failures are logged on the server, and visitors only see a generic "data service is not responding" message.
+- Limits and caches live in memory, so they reset on restart and aren't shared if you run several processes.
+
+Before launch, set `GOOGLE_MAPS_API_KEY` or point `OSRM_URL` at your own OSRM server, and swap the openstreetmap.org tile URL for a tile provider that allows production traffic. Both public OSM services are for light use only.
 
 ## API
 

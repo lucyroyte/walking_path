@@ -39,11 +39,16 @@ test('a flooded route loses to a slower dry one', () => {
   assert.deepEqual(best.labels, ['recommended']);
   assert.equal(worst.floodStatus, 'flooded');
   assert.ok(worst.labels.includes('fastest'));
+  assert.equal(best.decidedBy.source, 'FloodNet');
+  assert.equal(worst.decidedBy.source, 'FloodNet');
+  assert.match(worst.decidedBy.text, /60 mm/);
 });
 
 test('mild day: fastest wins even if the other is shadier', () => {
-  const [best] = scoreRoutes([west, east], { sensors: [], treeIndex: shadeAlong(east), heatWeight: 0 });
+  const [best, other] = scoreRoutes([west, east], { sensors: [], treeIndex: shadeAlong(east), heatWeight: 0 });
   assert.equal(best.path, west.path);
+  assert.equal(best.decidedBy.source, 'Walk time');
+  assert.equal(other.decidedBy.source, 'Walk time');
 });
 
 test('hot day: shady route wins over a slightly faster sunny one', () => {
@@ -52,6 +57,8 @@ test('hot day: shady route wins over a slightly faster sunny one', () => {
   assert.ok(ranked[0].shadePct > 90);
   assert.equal(ranked[1].shadePct, 0);
   assert.ok(ranked[0].labels.includes('shadiest'));
+  assert.equal(ranked[0].decidedBy.source, 'Street trees + NWS heat');
+  assert.equal(ranked[1].decidedBy.source, 'Street trees + NWS heat');
 });
 
 test('crownRadius is bounded', () => {

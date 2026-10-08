@@ -90,7 +90,7 @@ export function isDuplicate(a, b, toleranceM = 20) {
 
 export async function candidateRoutes(from, to) {
   const direct = await fetchRoutes([from, to], true);
-  if (direct.length === 0) throw new Error('No walking route found between those points.');
+  if (direct.length === 0) throw Object.assign(new Error('No walking route found between those points.'), { status: 422 });
   const detours = await mapLimit(viaPoints(from, to), 4, (via) =>
     fetchRoutes([from, via, to], false).catch(() => []),
   );

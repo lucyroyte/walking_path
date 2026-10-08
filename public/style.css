@@ -103,3 +103,4 @@ footer a { color: inherit; }
   #panel { width: 100%; border-right: none; border-top: 1px solid var(--line); max-height: 55vh; }
   #map { flex: none; height: 45vh; }
 }
+.why { font-size: 13px; margin: 6px 0 2px; }
