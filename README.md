@@ -18,6 +18,8 @@ For each trip the app:
 
    On a mild day this means the fastest dry route wins. On a hot day an unshaded minute counts as up to 1.6 minutes, so a slightly longer, shadier street can win. A flooded route comes last unless every option is flooded.
 
+Each route card says which data source decided its place in the ranking: **FloodNet** (it avoids, or passes, a wet or flooded sensor), **Street trees + NWS heat** (it won or lost on shade on a warm day), or **Walk time** (nothing else separated it from the others). The API returns this as `decidedBy: { source, text }` on every route.
+
 Each route card has an **Open in Google Maps** link. It pins the chosen route with waypoints so you can navigate turn-by-turn in Google Maps.
 
 ## Run it

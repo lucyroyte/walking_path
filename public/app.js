@@ -168,6 +168,7 @@ function routeCard(r, i, data) {
       ${r.labels.map((l) => `<span class="tag ${l}">${l}</span>`).join('')}
       ${floodTag}
     </div>
+    <div class="why"><b>${escapeHtml(r.decidedBy.source)}:</b> ${escapeHtml(r.decidedBy.text)}</div>
     <div class="meta">${r.shadePct}% under tree canopy</div>
     <div class="shadebar"><div style="width:${r.shadePct}%"></div></div>
     ${r.sensors.unknown.length ? `<div class="meta">${r.sensors.unknown.length} sensor(s) on this route have no recent reading</div>` : ''}
