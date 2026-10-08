@@ -47,6 +47,9 @@ Type addresses (geocoded with [NYC GeoSearch](https://geosearch.planninglabs.nyc
 
 ### Running it as a public website
 
+To put it online for free, use [Render](https://render.com): sign in with GitHub, choose **New > Blueprint**, and pick this repo. `render.yaml` sets everything up, and each merge redeploys. The free plan sleeps when idle, so the first visit after a quiet spell takes about 30 seconds.
+
+
 The server is ready to sit behind a host's HTTPS proxy as a single process:
 
 - **Rate limits** per visitor IP: 20 route searches, 120 address lookups and 30 sensor refreshes a minute. Over the limit returns `429` with `Retry-After`.
