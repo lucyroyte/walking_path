@@ -5,8 +5,8 @@ const carto = (style) => L.tileLayer(`https://{s}.basemaps.cartocdn.com/rasterti
   subdomains: 'abcd',
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
 });
-const basemaps = { Streets: carto('voyager'), Light: carto('light_all'), Dark: carto('dark_all') };
-basemaps.Streets.addTo(map);
+const basemaps = { Grey: carto('light_all'), Streets: carto('voyager'), Dark: carto('dark_all') };
+basemaps.Grey.addTo(map);
 L.control.layers(basemaps, null, { position: 'topright' }).addTo(map);
 
 const COLORS = { flooded: '#c62828', wet: '#ef8f00', dry: '#2e7d32', unknown: '#9e9e9e', offline: '#ffffff' };

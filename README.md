@@ -62,7 +62,7 @@ The server is ready to sit behind a host's HTTPS proxy as a single process:
 - **Errors**: upstream failures are logged on the server, and visitors only see a generic "data service is not responding" message.
 - Limits and caches live in memory, so they reset on restart and aren't shared if you run several processes.
 
-Before launch, set `GOOGLE_MAPS_API_KEY` or point `OSRM_URL` at your own OSRM server, The public OSRM server is for light use only. The map uses [CARTO basemaps](https://carto.com/basemaps) (Streets, Light and Dark, switchable in the top-right corner); they need no key but are free only for non-commercial sites up to 75,000 map views a month, so get a CARTO plan or another tile provider if traffic grows.
+Before launch, set `GOOGLE_MAPS_API_KEY` or point `OSRM_URL` at your own OSRM server, The public OSRM server is for light use only. The map uses [CARTO basemaps](https://carto.com/basemaps) (grey Positron by default, with Streets and Dark in the top-right switcher); they need no key but are free only for non-commercial sites up to 75,000 map views a month, so get a CARTO plan or another tile provider if traffic grows.
 
 ## API
 
