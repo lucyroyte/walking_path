@@ -106,3 +106,5 @@ footer a { color: inherit; }
 .why { font-size: 13px; margin: 6px 0 2px; }
 .warn { color: var(--flood); }
 .legend .hint { color: var(--muted); font-size: 11px; margin-top: 4px; }
+.tiles-grey { filter: grayscale(1) brightness(1.06) contrast(0.88); }
+.tiles-dark { filter: invert(1) hue-rotate(180deg) grayscale(0.7) brightness(0.85) contrast(0.9); }

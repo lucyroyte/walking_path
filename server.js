@@ -47,7 +47,7 @@ const SECURITY_HEADERS = {
     "default-src 'self'",
     "script-src 'self' https://unpkg.com",
     "style-src 'self' 'unsafe-inline' https://unpkg.com",
-    "img-src 'self' data: https://*.basemaps.cartocdn.com https://unpkg.com",
+    "img-src 'self' data: https://tile.openstreetmap.org https://unpkg.com",
     "connect-src 'self'",
     "frame-ancestors 'none'",
   ].join('; '),
