@@ -66,20 +66,21 @@ export class TreeStore {
     return this.tiles.get(k);
   }
 
-  // Grid index of every tree inside the bounding box.
-  async indexFor({ minLat, minLng, maxLat, maxLng }) {
+  // Every tree inside the bounding box, fetching at most `maxTiles` tiles.
+  async treesIn({ minLat, minLng, maxLat, maxLng }, maxTiles = 120) {
     const keys = [];
     for (let i = Math.floor(minLat / TILE_DEG); i <= Math.floor(maxLat / TILE_DEG); i++) {
       for (let j = Math.floor(minLng / TILE_DEG); j <= Math.floor(maxLng / TILE_DEG); j++) keys.push([i, j]);
     }
-    if (keys.length > 120) throw new Error('Area too large for shade lookup; try a shorter walk.');
+    if (keys.length > maxTiles) throw Object.assign(new Error('Area too large for a tree lookup; zoom in.'), { status: 400 });
     const tiles = await mapLimit(keys, 6, ([i, j]) => this.tile(i, j));
+    return tiles.flat().filter((t) => t.lat >= minLat && t.lat <= maxLat && t.lng >= minLng && t.lng <= maxLng);
+  }
+
+  // Grid index of every tree inside the bounding box.
+  async indexFor(box) {
     const index = new GridIndex(25);
-    for (const trees of tiles) {
-      for (const t of trees) {
-        if (t.lat >= minLat && t.lat <= maxLat && t.lng >= minLng && t.lng <= maxLng) index.insert([t.lat, t.lng], t);
-      }
-    }
+    for (const t of await this.treesIn(box)) index.insert([t.lat, t.lng], t);
     return index;
   }
 }

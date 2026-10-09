@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { scoreRoutes, floodHits } from '../src/scoring.js';
 import { GridIndex } from '../src/geo.js';
-import { classifyDepth } from '../src/floodnet.js';
+import { classifyDepth, isReliable } from '../src/floodnet.js';
 import { crownRadius } from '../src/trees.js';
 import { heatWeight, heatIndexF } from '../src/weather.js';
 
@@ -23,6 +23,20 @@ test('classifyDepth thresholds', () => {
   assert.equal(classifyDepth(0), 'dry');
   assert.equal(classifyDepth(12), 'wet');
   assert.equal(classifyDepth(25), 'flooded');
+});
+
+test('only sensors FloodNet marks healthy are trusted', () => {
+  assert.ok(isReliable('good'));
+  assert.ok(isReliable('good - fs'));
+  for (const s of ['noisy', 'signal', 'needs_driverail', 'dead', undefined]) assert.ok(!isReliable(s));
+});
+
+test('an offline sensor never makes a route flooded', () => {
+  const offline = { ...sensor('offline', 40.705, -74.002), sensorStatus: 'noisy' };
+  const [best] = scoreRoutes([west, east], { sensors: [offline] });
+  assert.equal(best.path, west.path);
+  assert.equal(best.floodStatus, 'clear');
+  assert.equal(best.sensors.unknown.length, 1);
 });
 
 test('floodHits only counts sensors next to the route', () => {

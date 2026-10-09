@@ -9,6 +9,12 @@ const API = 'https://api.floodnet.nyc/api/rest';
 const LOOKBACK_MIN = 30;     // window of readings to ask each sensor for
 const STALE_MIN = 60;        // a reading older than this means "unknown"
 const DEAD_STATUSES = new Set(['retired', 'dead', 'removal_requested', 'needs_sensor']);
+// FloodNet's own maintenance status for each sensor. Only these are trusted to
+// report real water; others (e.g. "noisy", "signal", "needs_driverail") can
+// read deep water on a dry street, so they're shown as offline and never
+// count as flooding.
+const RELIABLE_STATUSES = new Set(['good', 'good - fs', 'non-ota', 'low_charge']);
+export const isReliable = (sensorStatus) => RELIABLE_STATUSES.has(sensorStatus);
 
 // Depth thresholds in millimeters. FloodNet's own dashboard treats a few mm as
 // sensor noise; ~1 inch of water over a sidewalk or crosswalk is a real problem
@@ -50,7 +56,8 @@ export async function fetchSensors(now = Date.now(), { box } = {}) {
   const active = deployments.filter(
     (d) => !d.date_down && !DEAD_STATUSES.has(d.sensor_status) && d.location?.coordinates && inBox(d.location.coordinates),
   );
-  const readings = await mapLimit(active, 16, (d) => fetchLatestDepth(d.deployment_id, now));
+  const readings = await mapLimit(active, 16, (d) =>
+    isReliable(d.sensor_status) ? fetchLatestDepth(d.deployment_id, now) : { depthMm: null, time: null });
   return active.map((d, i) => {
     const r = readings[i];
     const ageMin = r.time ? (now - Date.parse(r.time)) / 60_000 : null;
@@ -64,7 +71,8 @@ export async function fetchSensors(now = Date.now(), { box } = {}) {
       lng,
       depthMm,
       readingTime: r.time,
-      status: classifyDepth(depthMm),
+      sensorStatus: d.sensor_status,
+      status: isReliable(d.sensor_status) ? classifyDepth(depthMm) : 'offline',
     };
   });
 }
