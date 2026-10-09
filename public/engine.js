@@ -2,7 +2,7 @@
 // where there's no server.js. It calls FloodNet, OSRM, NYC Open Data, NWS and
 // NYC GeoSearch directly, and only asks FloodNet about sensors near the routes.
 
-import { planTrip } from '../src/plan.js';
+import { planTrip, treesInView } from '../src/plan.js';
 import { fetchSensors } from '../src/floodnet.js';
 import { geocode } from '../src/geocode.js';
 import { TtlCache } from '../src/limits.js';
@@ -23,6 +23,7 @@ async function getSensors(box) {
 export const browserApi = {
   mode: 'browser',
   route: (from, to, heat) => planTrip(from, to, heat, { getSensors, trees }),
+  trees: (box) => treesInView(box, trees),
   // Only the sensors checked for the last trip; there's no background poller here.
   sensors: async () => lastSensors,
   geocode: (q) => geocodeCache.get(q.trim().toLowerCase(), () => geocode(q.trim().slice(0, 200))),

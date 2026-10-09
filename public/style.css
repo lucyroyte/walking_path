@@ -105,3 +105,4 @@ footer a { color: inherit; }
 }
 .why { font-size: 13px; margin: 6px 0 2px; }
 .warn { color: var(--flood); }
+.legend .hint { color: var(--muted); font-size: 11px; margin-top: 4px; }

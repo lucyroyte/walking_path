@@ -13,6 +13,15 @@ const MAX_TRIP_M = 15000;
 
 const badRequest = (message) => Object.assign(new Error(message), { status: 400 });
 
+// Trees in the visible map area, as [lat, lng, crownRadiusM]. Kept to a few
+// tiles so a zoomed-out map doesn't pull hundreds of thousands of trees.
+export const MAX_VIEW_TILES = 12;
+export async function treesInView(box, trees) {
+  if (![box.minLat, box.minLng, box.maxLat, box.maxLng].every(Number.isFinite)) throw badRequest('"bbox" must be 4 numbers');
+  const list = await trees.treesIn(box, MAX_VIEW_TILES);
+  return { trees: list.map((t) => [+t.lat.toFixed(6), +t.lng.toFixed(6), t.r]) };
+}
+
 export function checkPoint(p, name) {
   if (!p.every(Number.isFinite)) throw badRequest(`"${name}" must be "lat,lng"`);
   if (p[0] < NYC.minLat || p[0] > NYC.maxLat || p[1] < NYC.minLng || p[1] > NYC.maxLng) {

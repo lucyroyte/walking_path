@@ -4,7 +4,11 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
   attribution: '&copy; OpenStreetMap contributors',
 }).addTo(map);
 
-const COLORS = { flooded: '#c62828', wet: '#ef8f00', dry: '#2e7d32', unknown: '#9e9e9e' };
+const COLORS = { flooded: '#c62828', wet: '#ef8f00', dry: '#2e7d32', unknown: '#9e9e9e', offline: '#ffffff' };
+// Trees get their own pane below routes and sensors.
+map.createPane('trees').style.zIndex = 350;
+const treeRenderer = L.canvas({ pane: 'trees' });
+const TREE_MIN_ZOOM = 16;
 const sensorLayer = L.layerGroup().addTo(map);
 const treeLayer = L.layerGroup().addTo(map);
 const routeLayer = L.layerGroup().addTo(map);
@@ -18,7 +22,9 @@ legend.onAdd = () => {
     <div><i style="background:${COLORS.wet}"></i>Wet sensor</div>
     <div><i style="background:${COLORS.dry}"></i>Dry sensor</div>
     <div><i style="background:${COLORS.unknown}"></i>No recent reading</div>
-    <div><i style="background:#43a047;opacity:.5"></i>Street tree canopy (est.)</div>`;
+    <div><i style="background:#fff;box-shadow:inset 0 0 0 2px #757575"></i>Sensor offline or unreliable</div>
+    <div><i style="background:#43a047;opacity:.5"></i>Street tree canopy (est.)</div>
+    <div class="hint" id="tree-hint">Zoom in to see all street trees</div>`;
   return el;
 };
 legend.addTo(map);
@@ -48,6 +54,7 @@ const serverApi = {
   route: (from, to, heat) => getJson(`api/route?${new URLSearchParams({ from: from.join(','), to: to.join(','), heat })}`),
   sensors: () => getJson('api/sensors'),
   geocode: (q) => getJson(`api/geocode?q=${encodeURIComponent(q)}`),
+  trees: (b) => getJson(`api/trees?bbox=${[b.minLat, b.minLng, b.maxLat, b.maxLng].map((n) => n.toFixed(5)).join(',')}`),
 };
 
 async function pickApi() {
@@ -69,10 +76,13 @@ async function loadSensors() {
     const { sensors, updatedAt } = await (await apiReady).sensors();
     sensorLayer.clearLayers();
     for (const s of sensors) {
-      const depth = s.depthMm == null ? 'no recent reading' : `${s.depthMm} mm of water`;
+      const depth = s.status === 'offline'
+        ? `Offline or unreliable (FloodNet status: ${escapeHtml(s.sensorStatus || 'unknown')}); not used for routing`
+        : s.depthMm == null ? 'no recent reading' : `${s.depthMm} mm of water`;
       L.circleMarker([s.lat, s.lng], {
         radius: s.status === 'flooded' ? 8 : 5,
-        color: '#fff', weight: 1, fillColor: COLORS[s.status], fillOpacity: 0.95,
+        color: s.status === 'offline' ? '#757575' : '#fff', weight: s.status === 'offline' ? 2 : 1,
+        fillColor: COLORS[s.status], fillOpacity: 0.95,
       }).bindPopup(`<b>${escapeHtml(s.name)}</b><br>${depth}`).addTo(sensorLayer);
     }
     return { sensors, updatedAt };
@@ -191,7 +201,7 @@ function routeCard(r, i, data) {
     <div class="why"><b>${escapeHtml(r.decidedBy.source)}:</b> ${escapeHtml(r.decidedBy.text)}</div>
     <div class="meta">${r.shadePct}% under tree canopy</div>
     <div class="shadebar"><div style="width:${r.shadePct}%"></div></div>
-    ${r.sensors.unknown.length ? `<div class="meta">${r.sensors.unknown.length} sensor(s) on this route have no recent reading</div>` : ''}
+    ${r.sensors.unknown.length ? `<div class="meta">${r.sensors.unknown.length} sensor(s) on this route are offline or have no recent reading</div>` : ''}
     <a href="${googleMapsUrl(r, data.from, data.to)}" target="_blank" rel="noopener">Open in Google Maps</a>`;
   li.addEventListener('click', (e) => {
     if (e.target.tagName === 'A') return;
@@ -222,12 +232,38 @@ function renderRoutes(data, fit = true) {
   if (fit) map.fitBounds(L.latLngBounds(data.routes.flatMap((r) => r.path)), { padding: [30, 30] });
 }
 
-function renderTrees(trees) {
+function drawTrees(trees) {
   treeLayer.clearLayers();
   for (const [lat, lng, r] of trees) {
-    L.circle([lat, lng], { radius: r, stroke: false, fillColor: '#43a047', fillOpacity: 0.35, interactive: false }).addTo(treeLayer);
+    L.circle([lat, lng], {
+      radius: r, stroke: false, fillColor: '#43a047', fillOpacity: 0.4, interactive: false, renderer: treeRenderer,
+    }).addTo(treeLayer);
   }
 }
+
+// Zoomed in: every street tree in view (NYC Parks tree data). Zoomed out:
+// only the trees along the last searched routes, to keep the map fast.
+let routeTrees = [];
+let treeRequest = 0;
+let treeTimer;
+function refreshTrees() {
+  clearTimeout(treeTimer);
+  treeTimer = setTimeout(async () => {
+    const zoomedIn = map.getZoom() >= TREE_MIN_ZOOM;
+    const hint = document.getElementById('tree-hint');
+    if (hint) hint.hidden = zoomedIn;
+    const id = ++treeRequest;
+    if (!zoomedIn) return drawTrees(routeTrees);
+    const b = map.getBounds().pad(0.2);
+    try {
+      const { trees } = await (await apiReady).trees({
+        minLat: b.getSouth(), minLng: b.getWest(), maxLat: b.getNorth(), maxLng: b.getEast(),
+      });
+      if (id === treeRequest) drawTrees(trees);
+    } catch { /* outside NYC or too wide; keep what's drawn */ }
+  }, 300);
+}
+map.on('moveend', refreshTrees);
 
 async function findRoutes() {
   const btn = $('go');
@@ -240,7 +276,8 @@ async function findRoutes() {
     lastResult = data;
     selected = 0;
     renderConditions(data);
-    renderTrees(data.trees);
+    routeTrees = data.trees;
+    refreshTrees();
     renderRoutes(data);
     const best = data.routes[0];
     setStatus(best.floodStatus === 'flooded'
@@ -259,3 +296,4 @@ $('heat').addEventListener('change', () => { if (lastResult) findRoutes(); });
 
 loadSensors();
 setInterval(loadSensors, 3 * 60_000);
+refreshTrees();

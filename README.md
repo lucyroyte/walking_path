@@ -5,7 +5,7 @@ NYC walking directions that **steer around live street flooding** and **toward t
 For each trip the app:
 
 1. Gets several candidate walking routes. It asks the routing provider for its alternatives, and also for routes forced through "via" points on either side of the straight line, so there's a real choice when the obvious streets are flooded.
-2. Checks each route against **[FloodNet](https://www.floodnet.nyc)**, the network of about 400 real-time street-flood sensors. A route that passes within 50 m of a sensor reading at least 25 mm (about 1 inch) of water is marked *flooded*. A reading of 10 to 25 mm counts as *wet*.
+2. Checks each route against **[FloodNet](https://www.floodnet.nyc)**, the network of about 400 real-time street-flood sensors. A route that passes within 50 m of a sensor reading at least 25 mm (about 1 inch) of water is marked *flooded*. A reading of 10 to 25 mm counts as *wet*. Only sensors FloodNet marks as healthy (`good`, `good - fs`, `non-ota`, `low_charge`) are trusted. Sensors marked `noisy`, `signal`, `needs_driverail` and the like can report deep water on a dry street, so the map shows them as *offline* and they never count as flooding.
 3. Measures how much of each route is under street-tree canopy, using **[NYC Parks Forestry Tree Points](https://data.cityofnewyork.us/d/hn5i-inap)**. That dataset has about 900k living street trees. Crown size is estimated from trunk diameter.
 4. Reads the current temperature and heat index from the nearest **[National Weather Service](https://www.weather.gov)** station. Shade starts to count when it feels like 75°F and counts fully at 90°F.
 5. Ranks the routes by "effective minutes":
@@ -69,6 +69,7 @@ Before launch, set `GOOGLE_MAPS_API_KEY` or point `OSRM_URL` at your own OSRM se
 - `GET /api/route?from=lat,lng&to=lat,lng&heat=auto|on|off` returns ranked routes with geometry, shade %, nearby sensors, weather, and trees along the routes.
 - `GET /api/sensors` returns every active FloodNet sensor with its latest depth and status (`dry`/`wet`/`flooded`/`unknown`).
 - `GET /api/geocode?q=...` returns address autocomplete results.
+- `GET /api/trees?bbox=minLat,minLng,maxLat,maxLng` returns street trees in a small area as `[lat, lng, crownRadiusM]`. The map draws every tree in view from zoom 16 up, and only the trees along your routes when zoomed out.
 
 ## How it's built
 

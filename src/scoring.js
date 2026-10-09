@@ -49,7 +49,7 @@ export function scoreRoutes(routes, { sensors, treeIndex = new GridIndex(), heat
     const nearby = floodHits(route.path, sensors);
     const flooded = nearby.filter((s) => s.status === 'flooded');
     const wet = nearby.filter((s) => s.status === 'wet');
-    const unknown = nearby.filter((s) => s.status === 'unknown');
+    const unknown = nearby.filter((s) => s.status === 'unknown' || s.status === 'offline');
     const cost =
       route.durationS * (1 + HEAT_PENALTY * heatWeight * (1 - shade.share)) +
       wet.length * WET_PENALTY_S +

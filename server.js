@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { FloodNetCache } from './src/floodnet.js';
 import { TreeStore } from './src/trees.js';
 import { providerName } from './src/routing.js';
-import { planTrip, checkPoint } from './src/plan.js';
+import { planTrip, checkPoint, treesInView } from './src/plan.js';
 import { geocode } from './src/geocode.js';
 import { RateLimiter, TtlCache } from './src/limits.js';
 
@@ -30,6 +30,7 @@ const LIMITS = {
   '/api/geocode': new RateLimiter({ max: 120, windowMs: 60_000 }),
   '/api/sensors': new RateLimiter({ max: 30, windowMs: 60_000 }),
   '/api/health': new RateLimiter({ max: 60, windowMs: 60_000 }),
+  '/api/trees': new RateLimiter({ max: 120, windowMs: 60_000 }),
 };
 const routeCache = new TtlCache({ ttlMs: 2 * 60_000 });
 const geocodeCache = new TtlCache({ ttlMs: 24 * 3600_000, maxEntries: 2000 });
@@ -81,6 +82,10 @@ async function handleGeocode(q) {
 
 const API = {
   '/api/health': async () => ({ ok: true }),
+  '/api/trees': async (q) => {
+    const [minLat, minLng, maxLat, maxLng] = (q.get('bbox') || '').split(',').map(Number);
+    return treesInView({ minLat, minLng, maxLat, maxLng }, trees);
+  },
   '/api/route': handleRoute, '/api/sensors': handleSensors, '/api/geocode': handleGeocode };
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml' };
 
