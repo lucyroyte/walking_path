@@ -58,11 +58,11 @@ The server is ready to sit behind a host's HTTPS proxy as a single process:
 
 - **Rate limits** per visitor IP: 20 route searches, 120 address lookups and 30 sensor refreshes a minute. Over the limit returns `429` with `Retry-After`.
 - **Caching**: identical route searches are reused for 2 minutes and address lookups for a day, so repeat clicks and shared links don't hit the routing server again. FloodNet is polled in the background every 3 minutes no matter how much traffic there is.
-- **Headers**: a Content-Security-Policy that only allows this site, Leaflet from unpkg and CARTO map tiles, plus `nosniff` and a strict referrer policy.
+- **Headers**: a Content-Security-Policy that only allows this site, Leaflet from unpkg and OpenStreetMap tiles, plus `nosniff` and a strict referrer policy.
 - **Errors**: upstream failures are logged on the server, and visitors only see a generic "data service is not responding" message.
 - Limits and caches live in memory, so they reset on restart and aren't shared if you run several processes.
 
-Before launch, set `GOOGLE_MAPS_API_KEY` or point `OSRM_URL` at your own OSRM server, The public OSRM server is for light use only. The map uses [CARTO basemaps](https://carto.com/basemaps) (grey Positron by default, with Streets and Dark in the top-right switcher); they need no key but are free only for non-commercial sites up to 75,000 map views a month, so get a CARTO plan or another tile provider if traffic grows.
+Before launch, set `GOOGLE_MAPS_API_KEY` or point `OSRM_URL` at your own OSRM server, The public OSRM server is for light use only. The map uses OpenStreetMap's standard tiles (no key), shown grey by default with Streets and Dark in the top-right switcher; the grey and dark looks are CSS filters. OpenStreetMap's tile servers are for light use, so move to a paid tile provider if traffic grows.
 
 ## API
 

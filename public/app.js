@@ -1,11 +1,12 @@
 const map = L.map('map', { preferCanvas: true }).setView([40.7128, -73.98], 13);
-// CARTO basemaps: free without a key for low-traffic sites, OpenStreetMap data.
-const carto = (style) => L.tileLayer(`https://{s}.basemaps.cartocdn.com/${style}/{z}/{x}/{y}{r}.png`, {
-  maxZoom: 20,
-  subdomains: 'abcd',
-  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+// OpenStreetMap's standard tiles: free and key-less. The grey and dark looks
+// are CSS filters on the same images (see .tiles-grey/.tiles-dark in style.css).
+const osm = (className) => L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19,
+  className,
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
 });
-const basemaps = { Grey: carto('light_all'), Streets: carto('rastertiles/voyager'), Dark: carto('dark_all') };
+const basemaps = { Grey: osm('tiles-grey'), Streets: osm(''), Dark: osm('tiles-dark') };
 basemaps.Grey.addTo(map);
 L.control.layers(basemaps, null, { position: 'topright' }).addTo(map);
 
