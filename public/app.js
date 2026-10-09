@@ -1,11 +1,11 @@
 const map = L.map('map', { preferCanvas: true }).setView([40.7128, -73.98], 13);
 // CARTO basemaps: free without a key for low-traffic sites, OpenStreetMap data.
-const carto = (style) => L.tileLayer(`https://{s}.basemaps.cartocdn.com/rastertiles/${style}/{z}/{x}/{y}{r}.png`, {
+const carto = (style) => L.tileLayer(`https://{s}.basemaps.cartocdn.com/${style}/{z}/{x}/{y}{r}.png`, {
   maxZoom: 20,
   subdomains: 'abcd',
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
 });
-const basemaps = { Grey: carto('light_all'), Streets: carto('voyager'), Dark: carto('dark_all') };
+const basemaps = { Grey: carto('light_all'), Streets: carto('rastertiles/voyager'), Dark: carto('dark_all') };
 basemaps.Grey.addTo(map);
 L.control.layers(basemaps, null, { position: 'topright' }).addTo(map);
 
