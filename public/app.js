@@ -1,8 +1,13 @@
 const map = L.map('map', { preferCanvas: true }).setView([40.7128, -73.98], 13);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19,
-  attribution: '&copy; OpenStreetMap contributors',
-}).addTo(map);
+// CARTO basemaps: free without a key for low-traffic sites, OpenStreetMap data.
+const carto = (style) => L.tileLayer(`https://{s}.basemaps.cartocdn.com/rastertiles/${style}/{z}/{x}/{y}{r}.png`, {
+  maxZoom: 20,
+  subdomains: 'abcd',
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+});
+const basemaps = { Streets: carto('voyager'), Light: carto('light_all'), Dark: carto('dark_all') };
+basemaps.Streets.addTo(map);
+L.control.layers(basemaps, null, { position: 'topright' }).addTo(map);
 
 const COLORS = { flooded: '#c62828', wet: '#ef8f00', dry: '#2e7d32', unknown: '#9e9e9e', offline: '#ffffff' };
 // Trees get their own pane below routes and sensors.
