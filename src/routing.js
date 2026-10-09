@@ -5,8 +5,9 @@
 
 import { decodePolyline, haversine, samplePath, distanceToPath } from './geo.js';
 import { fetchJson, mapLimit } from './http.js';
+import { env } from './env.js';
 
-const OSRM = process.env.OSRM_URL || 'https://routing.openstreetmap.de/routed-foot';
+const OSRM = env.OSRM_URL || 'https://routing.openstreetmap.de/routed-foot';
 const GOOGLE_ROUTES = 'https://routes.googleapis.com/directions/v2:computeRoutes';
 const MAX_DETOUR = 1.5; // drop candidates more than 50% slower than the fastest
 
@@ -36,7 +37,7 @@ async function googleRoutes(points, alternatives) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-Goog-Api-Key': process.env.GOOGLE_MAPS_API_KEY,
+      'X-Goog-Api-Key': env.GOOGLE_MAPS_API_KEY,
       'X-Goog-FieldMask': 'routes.duration,routes.distanceMeters,routes.polyline.encodedPolyline',
     },
     body: JSON.stringify(body),
@@ -50,7 +51,7 @@ async function googleRoutes(points, alternatives) {
 }
 
 export function providerName() {
-  return process.env.GOOGLE_MAPS_API_KEY ? 'google' : 'osm';
+  return env.GOOGLE_MAPS_API_KEY ? 'google' : 'osm';
 }
 
 function fetchRoutes(points, alternatives) {

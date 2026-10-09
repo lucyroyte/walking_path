@@ -3,10 +3,9 @@
 // Trees are fetched lazily in fixed lat/lng tiles and cached in memory and on
 // disk, since the tree inventory changes slowly.
 
-import fs from 'node:fs/promises';
-import path from 'node:path';
 import { fetchJson, mapLimit } from './http.js';
 import { GridIndex } from './geo.js';
+import { env, IN_NODE } from './env.js';
 
 const DATASET = 'https://data.cityofnewyork.us/resource/hn5i-inap.json';
 const TILE_DEG = 0.01; // ~1.1 km north-south, ~0.85 km east-west in NYC
@@ -23,18 +22,23 @@ export function crownRadius(dbhInches) {
 function tileKey(i, j) { return `${i}_${j}`; }
 
 export class TreeStore {
-  constructor({ cacheDir = '.cache/trees', appToken = process.env.SOCRATA_APP_TOKEN } = {}) {
+  // The disk cache is only used in Node; in the browser tiles stay in memory.
+  constructor({ cacheDir = IN_NODE ? '.cache/trees' : null, appToken = env.SOCRATA_APP_TOKEN } = {}) {
     this.cacheDir = cacheDir;
     this.appToken = appToken;
     this.tiles = new Map(); // key -> Promise<Array<{lat,lng,r}>>
   }
 
   async fetchTile(i, j) {
-    const file = path.join(this.cacheDir, `${tileKey(i, j)}.json`);
-    try {
-      const stat = await fs.stat(file);
-      if (Date.now() - stat.mtimeMs < CACHE_TTL_MS) return JSON.parse(await fs.readFile(file, 'utf8'));
-    } catch { /* not cached yet */ }
+    let fs, file;
+    if (this.cacheDir) {
+      fs = await import('node:fs/promises');
+      file = `${this.cacheDir}/${tileKey(i, j)}.json`;
+      try {
+        const stat = await fs.stat(file);
+        if (Date.now() - stat.mtimeMs < CACHE_TTL_MS) return JSON.parse(await fs.readFile(file, 'utf8'));
+      } catch { /* not cached yet */ }
+    }
 
     const south = i * TILE_DEG, west = j * TILE_DEG;
     const north = south + TILE_DEG, east = west + TILE_DEG;
@@ -46,8 +50,10 @@ export class TreeStore {
       .filter((r) => r.location?.coordinates)
       .map((r) => ({ lat: r.location.coordinates[1], lng: r.location.coordinates[0], r: +crownRadius(r.dbh).toFixed(1) }));
 
-    await fs.mkdir(this.cacheDir, { recursive: true });
-    await fs.writeFile(file, JSON.stringify(trees));
+    if (fs) {
+      await fs.mkdir(this.cacheDir, { recursive: true });
+      await fs.writeFile(file, JSON.stringify(trees));
+    }
     return trees;
   }
 

@@ -1,9 +1,14 @@
-const USER_AGENT = 'walking-path (https://github.com/lucyroyte/walking_path)';
+import { IN_NODE } from './env.js';
+
+// Browsers send their own User-Agent, and a custom one would force a CORS preflight.
+const BASE_HEADERS = IN_NODE
+  ? { 'User-Agent': 'walking-path (https://github.com/lucyroyte/walking_path)', Accept: 'application/json' }
+  : { Accept: 'application/json' };
 
 export async function fetchJson(url, { timeoutMs = 20000, headers = {}, ...init } = {}) {
   const res = await fetch(url, {
     ...init,
-    headers: { 'User-Agent': USER_AGENT, Accept: 'application/json', ...headers },
+    headers: { ...BASE_HEADERS, ...headers },
     signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) {
